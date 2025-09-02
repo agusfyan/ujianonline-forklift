@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aplikasi Ujian (Teori & Praktek)</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --bg: #f6f7fb;
+    --text: #111827;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --muted: #6b7280;
+    --primary: #2563eb;
+    --primary-contrast: #ffffff;
+    --correct: #16a34a;
+    --wrong: #dc2626;
+    --shadow: 0 2px 10px rgba(0,0,0,.06);
+  }
+  body.dark{
+    --bg: #0b0f16;
+    --text: #e5e7eb;
+    --card: #111827;
+    --border: #1f2937;
+    --muted: #9ca3af;
+    --primary: #60a5fa;
+    --primary-contrast: #0b0f16;
+    --shadow: 0 2px 14px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background:var(--bg); color:var(--text); transition:background .25s,color .25s;
+  }
+  header{
+    position:sticky; top:0; z-index:10;
+    background:var(--card); border-bottom:1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .bar{
+    max-width:1100px; margin:0 auto; padding:10px 16px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+  }
+  .brand{display:flex; align-items:center; gap:10px}
+  .brand h1{font-size:16px; margin:0}
+  nav{display:flex; gap:8px; flex-wrap:wrap}
+  .tab{
+    background:transparent; border:1px solid var(--border); color:var(--text);
+    padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600;
+  }
+  .tab.active{ background:var(--primary); color:var(--primary-contrast); border-color:transparent; }
+  .icon-btn{
+    background:transparent; border:1px solid var(--border); color:var(--text);
+    width:38px; height:38px; border-radius:999px; cursor:pointer; font-size:18px;
+    display:grid; place-items:center;
+  }
+  main{max-width:1100px; margin:18px auto; padding:0 16px 24px}
+  .status{
+    background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:12px 14px; color:var(--muted); box-shadow:var(--shadow); margin-bottom:14px;
+  }
+
+  /* Kartu soal */
+  .question{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:16px; margin-bottom:14px; box-shadow:var(--shadow);
+  }
+  .q-title{margin:0 0 10px 0; font-size:16px; line-height:1.35}
+  .q-media{max-width:100%; border-radius:10px; margin:10px 0; display:block}
+  .options{display:grid; gap:8px}
+  .opt{
+    width:100%; padding:10px 12px; border-radius:10px;
+    border:1px solid var(--border); background:var(--card); color:var(--text);
+    text-align:left; cursor:pointer; transition:.2s;
+  }
+  .opt:hover{ transform: translateY(-1px); }
+  .opt.correct{ background:var(--correct); border-color:transparent; color:#fff; }
+  .opt.wrong{ background:var(--wrong); border-color:transparent; color:#fff; }
+  .opt:disabled{ opacity:.85; cursor:not-allowed }
+  .explain{ margin-top:8px; color:var(--correct); font-style:italic; font-size:14px; }
+  .footer-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:18px}
+  .btn{
+    padding:10px 14px; border-radius:10px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); cursor:pointer; font-weight:600;
+  }
+  .btn.primary{ background:var(--primary); color:var(--primary-contrast); border-color:transparent; }
+  .scorebox{
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:12px 14px; box-shadow:var(--shadow); font-weight:700; margin:12px 0;
+  }
+
+  /* Halaman Praktek */
+  .grid{display:grid; gap:14px}
+  @media (min-width: 760px){
+    .grid.cols-2{grid-template-columns:1fr 1fr}
+  }
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:14px; box-shadow:var(--shadow);
+  }
+  .card h3{margin:0 0 8px 0}
+  iframe{width:100%; height:260px; border:0; border-radius:10px}
+  a{ color:var(--primary); text-decoration:none; font-weight:600 }
+  a:hover{ text-decoration:underline }
+</style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <div class="brand">
+        <strong>📘 Ujian Forklift</strong>
+        <nav>
+          <button id="tabTeori" class="tab active" type="button">UJIAN TEORI</button>
+          <button id="tabPraktek" class="tab" type="button">UJIAN PRAKTEK</button>
+        </nav>
+      </div>
+      <button id="toggleDark" class="icon-btn" type="button" title="Toggle dark mode">🌙</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="status" class="status">Memuat soal…</div>
+    <div id="content"></div>
+  </main>
+
+<script>
+/*** 1) SETEL LINK SHEET DI SINI ***/
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9M0EUnafqpiKumZMNADPMVF_C6pCHsnBA6FW3UgCbxPIrkC_3elyBRmzR58k9xg/pub?output=csv";
+/*** 2) OPSIONAL: BATAS SOAL TIAP UJIAN ***/
+const JUMLAH_SOAL = 80;
+
+let bankSoal = [];     // semua soal valid
+let paketSoal = [];    // 80 soal teracak
+let jawabanUser = {};  // index -> huruf (A/B/C/D/...)
+let skor = 0;
+
+/* ======= UTILITAS ======= */
+const $ = sel => document.querySelector(sel);
+function setStatus(msg){ const el=$("#status"); if(!msg){el.style.display="none"} else {el.style.display="block"; el.textContent=msg} }
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+
+function convertDriveLink(url){
+  if(!url) return "";
+  if(url.includes("drive.google.com")){
+    const id = (url.match(/[-\w]{25,}/)||[])[0];
+    if(id) return `https://drive.google.com/uc?export=view&id=${id}`;
+  }
+  return url;
+}
+
+// Ambil nilai kolom dengan beberapa kemungkinan nama (case-insensitive)
+function pick(obj, names){
+  for(const n of names){
+    const k = Object.keys(obj).find(x => x.trim().toLowerCase()===n.toLowerCase());
+    if(k && obj[k]!=null && String(obj[k]).trim()!=="") return String(obj[k]).trim();
+  }
+  return "";
+}
+
+// Normalisasi 1 baris CSV menjadi objek soal seragam
+function normalizeRow(row){
+  // Lower-cased object tanpa ubah nilai
+  const norm = {};
+  for(const k in row){ if(!Object.hasOwn(row,k)) continue; norm[k.trim().toLowerCase()] = (row[k] ?? "").toString().trim(); }
+
+  const soal = pick(norm, ["soal","pertanyaan","question","judul"]);
+  const gambar = convertDriveLink(pick(norm, ["gambar","image","img","foto"]));
+
+  // opsi: dukung A–E jika ada
+  const opsi = [];
+  const labelHuruf = ["a","b","c","d","e"];
+  for(const h of labelHuruf){
+    const v = pick(norm, [h, `opsi ${h.toUpperCase()}`, `opsi_${h}`, `option ${h.toUpperCase()}`, `pilihan ${h.toUpperCase()}`]);
+    if(v) opsi.push(v);
+  }
+  // fallback ke header klasik A/B/C/D
+  if(opsi.length===0){
+    const vA = norm["a"]||row["A"]; const vB=norm["b"]||row["B"];
+    const vC = norm["c"]||row["C"]; const vD=norm["d"]||row["D"];
+    [vA,vB,vC,vD].forEach(v=>{ if(v) opsi.push(v) });
+  }
+
+  // kunci: bisa berupa huruf (A/B/…) atau isi teks opsi
+  let kunciRaw = pick(norm, ["jawaban","kunci","jawaban benar","jawaban_benar","answer","correct"]);
+  let kunciIndex = -1;
+  if(kunciRaw){
+    const letter = kunciRaw.replace(/\s+/g,"").toUpperCase();
+    const idxLetter = "ABCDE".indexOf(letter);
+    if(idxLetter >=0) kunciIndex = idxLetter;
+    else {
+      kunciIndex = opsi.findIndex(o => o.toLowerCase() === kunciRaw.toLowerCase());
+    }
+  }
+
+  if(!soal || opsi.length<2 || kunciIndex<0 || kunciIndex>=opsi.length){
+    return null; // baris tidak valid
+  }
+  return { soal, opsi, kunciIndex, gambar };
+}
+
+/* ======= DATA & RENDER ======= */
+function loadSoal(){
+  setStatus("Mengunduh soal dari Google Sheet…");
+  Papa.parse(SHEET_URL, {
+    download:true, header:true, skipEmptyLines:true, dynamicTyping:false,
+    complete: (res)=>{
+      const valid = [];
+      const rejected = [];
+      (res.data||[]).forEach((row,i)=>{
+        const s = normalizeRow(row);
+        if(s) valid.push(s); else rejected.push(i+2); // +2 kira-kira rekening header
+      });
+      if(valid.length===0){
+        setStatus("Gagal: Tidak ada baris soal yang valid. Cek nama kolom & isi sheet Anda.");
+        return;
+      }
+      bankSoal = valid;
+      setStatus(""); // sembunyikan status
+      gotoTeori(true);
+    },
+    error: (err)=> setStatus("Gagal memuat CSV: " + (err?.message||err))
+  });
+}
+
+function gotoTeori(reset=false){
+  $("#tabTeori").classList.add("active");
+  $("#tabPraktek").classList.remove("active");
+  $("#content").innerHTML = "";
+  if(reset){
+    paketSoal = shuffle([...bankSoal]).slice(0, Math.min(JUMLAH_SOAL, bankSoal.length));
+    jawabanUser = {};
+    skor = 0;
+  }
+  renderTeori();
+}
+
+function renderTeori(){
+  const root = $("#content");
+  const scoreBox = document.createElement("div");
+  scoreBox.className = "scorebox";
+  scoreBox.id = "scoreBox";
+  scoreBox.textContent = `Skor: ${skor} / ${paketSoal.length}`;
+  root.appendChild(scoreBox);
+
+  paketSoal.forEach((q, idx)=>{
+    const card = document.createElement("div");
+    card.className = "question";
+
+    const title = document.createElement("h3");
+    title.className = "q-title";
+    title.innerHTML = `${idx+1}. ${q.soal}`;
+    card.appendChild(title);
+
+    if(q.gambar){
+      const img = document.createElement("img");
+      img.className = "q-media";
+      img.alt = "Gambar soal";
+      img.src = q.gambar;
+      img.referrerPolicy = "no-referrer";
+      img.onerror = ()=>{ img.style.display="none"; };
+      card.appendChild(img);
+    }
+
+    const opts = document.createElement("div");
+    opts.className = "options";
+
+    q.opsi.forEach((teksOpt, j)=>{
+      const btn = document.createElement("button");
+      const huruf = String.fromCharCode(65 + j);
+      btn.className = "opt";
+      btn.type = "button";
+      btn.textContent = `${huruf}. ${teksOpt}`;
+      btn.addEventListener("click", ()=>{
+        if(jawabanUser[idx]) return;
+
+        jawabanUser[idx] = huruf;
+        // kunci
+        const benarIndex = q.kunciIndex;
+        if(j === benarIndex){
+          btn.classList.add("correct");
+          skor++;
+        } else {
+          btn.classList.add("wrong");
+          // tandai yang benar
+          const selector = `.opt:nth-child(${benarIndex+1})`;
+          const btnBenar = opts.querySelector(selector);
+          if(btnBenar) btnBenar.classList.add("correct");
+
+          // teks pembahasan ringkas
+          const explain = document.createElement("div");
+          explain.className = "explain";
+          const kunciText = q.opsi[benarIndex];
+          explain.textContent = `Jawaban benar: ${String.fromCharCode(65+benarIndex)}. ${kunciText}`;
+          card.appendChild(explain);
+        }
+        // kunci opsi di soal ini
+        [...opts.children].forEach(b => b.disabled = true);
+        // update skor live
+        $("#scoreBox").textContent = `Skor: ${skor} / ${paketSoal.length}`;
+      });
+      opts.appendChild(btn);
+    });
+
+    card.appendChild(opts);
+    root.appendChild(card);
+  });
+
+  const actions = document.createElement("div");
+  actions.className = "footer-actions";
+  actions.innerHTML = `
+    <button class="btn" id="btnUlangi" type="button">Acak Ulang Soal</button>
+    <button class="btn primary" id="btnSelesai" type="button">Selesai & Lihat Rangkuman</button>
+  `;
+  root.appendChild(actions);
+
+  $("#btnUlangi").onclick = ()=> gotoTeori(true);
+  $("#btnSelesai").onclick = rangkuman;
+}
+
+function rangkuman(){
+  const root = $("#content");
+  const salah = [];
+  paketSoal.forEach((q,i)=>{
+    const hurufKunci = String.fromCharCode(65 + q.kunciIndex);
+    if(jawabanUser[i] !== hurufKunci){
+      salah.push({ no:i+1, benar: `${hurufKunci}. ${q.opsi[q.kunciIndex]}` });
+    }
+  });
+
+  const box = document.createElement("div");
+  box.className = "card";
+  box.innerHTML = `<h3>Hasil Ujian</h3>
+    <p><strong>Skor:</strong> ${skor} / ${paketSoal.length}</p>
+    ${salah.length? `<p><strong>Soal yang salah:</strong></p>
+      <ul>${salah.map(s=>`<li>Nomor ${s.no} → ${s.benar}</li>`).join("")}</ul>` : `<p>🎉 Semua jawaban benar!</p>`}
+  `;
+  root.appendChild(box);
+}
+
+function gotoPraktek(){
+  $("#tabTeori").classList.remove("active");
+  $("#tabPraktek").classList.add("active");
+  const c = $("#content");
+  c.innerHTML = `
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Video Praktek sesi ke 1</h3>
+        <iframe src="https://www.youtube.com/embed/pTxyWrFCz6w" allowfullscreen referrerpolicy="no-referrer"></iframe>
+      </div>
+      <div class="card">
+        <h3>Video Praktek sesi ke 2</h3>
+        <iframe src="https://www.youtube.com/embed/CDz1AMt14Us" allowfullscreen referrerpolicy="no-referrer"></iframe>
+      </div>
+      <div class="card">
+        <h3>Video Praktek sesi ke 3</h3>
+        <iframe src="https://www.youtube.com/embed/PwxCufCy9Ss" allowfullscreen referrerpolicy="no-referrer"></iframe>
+      </div>
+      <div class="card">
+        <h3>Materi ujian praktek sesi ke 1 sampai ke 3</h3>
+        <a href="https://drive.google.com/file/d/1JQ4MXpNOZwBGqU0lR3hDYkS5b567iu2y/view?usp=drive_link" target="_blank" rel="noopener">📄 Buka Materi praktek sesi ke 1 sampai ke 3</a>
+      </div>
+    </div>
+  `;
+}
+
+/* ======= EVENT UI ======= */
+$("#toggleDark").addEventListener("click", () => {
+  document.body.classList.toggle("dark");
+  $("#toggleDark").textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+});
+$("#tabTeori").addEventListener("click", ()=> gotoTeori(false));
+$("#tabPraktek").addEventListener("click", gotoPraktek);
+
+/* Mulai */
+loadSoal();
+</script>
+</body>
+</html>
