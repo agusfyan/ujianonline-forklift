@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Aplikasi Ujian (Teori & Praktek)</title>
+<title>Aplikasi Ujian Forklift (Teori & Praktek)</title>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <style>
   :root{
@@ -43,7 +43,6 @@
     display:flex; align-items:center; justify-content:space-between; gap:12px;
   }
   .brand{display:flex; align-items:center; gap:10px}
-  .brand h1{font-size:16px; margin:0}
   nav{display:flex; gap:8px; flex-wrap:wrap}
   .tab{
     background:transparent; border:1px solid var(--border); color:var(--text);
@@ -74,7 +73,6 @@
     border:1px solid var(--border); background:var(--card); color:var(--text);
     text-align:left; cursor:pointer; transition:.2s;
   }
-  .opt:hover{ transform: translateY(-1px); }
   .opt.correct{ background:var(--correct); border-color:transparent; color:#fff; }
   .opt.wrong{ background:var(--wrong); border-color:transparent; color:#fff; }
   .opt:disabled{ opacity:.85; cursor:not-allowed }
@@ -125,112 +123,74 @@
   </main>
 
 <script>
-/*** 1) SETEL LINK SHEET DI SINI ***/
+/*** LINK GOOGLE SHEET ***/
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9M0EUnafqpiKumZMNADPMVF_C6pCHsnBA6FW3UgCbxPIrkC_3elyBRmzR58k9xg/pub?output=csv";
-/*** 2) OPSIONAL: BATAS SOAL TIAP UJIAN ***/
 const JUMLAH_SOAL = 80;
 
-let bankSoal = [];     // semua soal valid
-let paketSoal = [];    // 80 soal teracak
-let jawabanUser = {};  // index -> huruf (A/B/C/D/...)
+let bankSoal = [];
+let paketSoal = [];
+let jawabanUser = {};
 let skor = 0;
+let soalSudahDipakai = new Set();
 
-/* ======= UTILITAS ======= */
+/* ==== UTILITAS ==== */
 const $ = sel => document.querySelector(sel);
 function setStatus(msg){ const el=$("#status"); if(!msg){el.style.display="none"} else {el.style.display="block"; el.textContent=msg} }
 function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
 
 function convertDriveLink(url){
   if(!url) return "";
-  if(url.includes("drive.google.com")){
-    const id = (url.match(/[-\w]{25,}/)||[])[0];
-    if(id) return `https://drive.google.com/uc?export=view&id=${id}`;
-  }
-  return url;
+  const id = (url.match(/[-\w]{25,}/)||[])[0];
+  return id? `https://drive.google.com/uc?export=view&id=${id}` : url;
 }
 
-// Ambil nilai kolom dengan beberapa kemungkinan nama (case-insensitive)
-function pick(obj, names){
-  for(const n of names){
-    const k = Object.keys(obj).find(x => x.trim().toLowerCase()===n.toLowerCase());
-    if(k && obj[k]!=null && String(obj[k]).trim()!=="") return String(obj[k]).trim();
-  }
-  return "";
-}
-
-// Normalisasi 1 baris CSV menjadi objek soal seragam
 function normalizeRow(row){
-  // Lower-cased object tanpa ubah nilai
-  const norm = {};
-  for(const k in row){ if(!Object.hasOwn(row,k)) continue; norm[k.trim().toLowerCase()] = (row[k] ?? "").toString().trim(); }
-
-  const soal = pick(norm, ["soal","pertanyaan","question","judul"]);
-  const gambar = convertDriveLink(pick(norm, ["gambar","image","img","foto"]));
-
-  // opsi: dukung A–E jika ada
-  const opsi = [];
-  const labelHuruf = ["a","b","c","d","e"];
-  for(const h of labelHuruf){
-    const v = pick(norm, [h, `opsi ${h.toUpperCase()}`, `opsi_${h}`, `option ${h.toUpperCase()}`, `pilihan ${h.toUpperCase()}`]);
-    if(v) opsi.push(v);
-  }
-  // fallback ke header klasik A/B/C/D
-  if(opsi.length===0){
-    const vA = norm["a"]||row["A"]; const vB=norm["b"]||row["B"];
-    const vC = norm["c"]||row["C"]; const vD=norm["d"]||row["D"];
-    [vA,vB,vC,vD].forEach(v=>{ if(v) opsi.push(v) });
-  }
-
-  // kunci: bisa berupa huruf (A/B/…) atau isi teks opsi
-  let kunciRaw = pick(norm, ["jawaban","kunci","jawaban benar","jawaban_benar","answer","correct"]);
-  let kunciIndex = -1;
-  if(kunciRaw){
-    const letter = kunciRaw.replace(/\s+/g,"").toUpperCase();
-    const idxLetter = "ABCDE".indexOf(letter);
-    if(idxLetter >=0) kunciIndex = idxLetter;
-    else {
-      kunciIndex = opsi.findIndex(o => o.toLowerCase() === kunciRaw.toLowerCase());
-    }
-  }
-
-  if(!soal || opsi.length<2 || kunciIndex<0 || kunciIndex>=opsi.length){
-    return null; // baris tidak valid
-  }
-  return { soal, opsi, kunciIndex, gambar };
+  const soal = row["Soal"]||row["soal"]||"";
+  const opsi = [row["A"],row["B"],row["C"],row["D"]].filter(Boolean);
+  const gambar = row["Gambar"]? convertDriveLink(row["Gambar"]) : "";
+  const kunci = (row["Jawaban"]||"").trim().toUpperCase();
+  const idx = "ABCD".indexOf(kunci);
+  if(!soal||opsi.length<2||idx<0) return null;
+  return {soal,opsi,kunciIndex:idx,gambar};
 }
 
-/* ======= DATA & RENDER ======= */
+/* ==== LOAD SOAL ==== */
 function loadSoal(){
-  setStatus("Mengunduh soal dari Google Sheet…");
+  setStatus("Mengunduh soal…");
   Papa.parse(SHEET_URL, {
-    download:true, header:true, skipEmptyLines:true, dynamicTyping:false,
-    complete: (res)=>{
-      const valid = [];
-      const rejected = [];
-      (res.data||[]).forEach((row,i)=>{
-        const s = normalizeRow(row);
-        if(s) valid.push(s); else rejected.push(i+2); // +2 kira-kira rekening header
-      });
-      if(valid.length===0){
-        setStatus("Gagal: Tidak ada baris soal yang valid. Cek nama kolom & isi sheet Anda.");
-        return;
-      }
-      bankSoal = valid;
-      setStatus(""); // sembunyikan status
+    download:true, header:true, skipEmptyLines:true,
+    complete: res=>{
+      bankSoal = res.data.map(normalizeRow).filter(Boolean);
+      setStatus("");
       gotoTeori(true);
     },
-    error: (err)=> setStatus("Gagal memuat CSV: " + (err?.message||err))
+    error: err=> setStatus("Gagal memuat: "+err.message)
   });
 }
 
+/* ==== ROTASI 80 SOAL ==== */
+function pilihSoalBaru(){
+  let sisa = bankSoal.filter((s,i)=> !soalSudahDipakai.has(i));
+  if(sisa.length < JUMLAH_SOAL){
+    soalSudahDipakai.clear(); // reset jika semua sudah keluar
+    sisa = [...bankSoal];
+  }
+  const pilihan = shuffle([...sisa]).slice(0,JUMLAH_SOAL);
+  pilihan.forEach(s=>{
+    const idx = bankSoal.indexOf(s);
+    soalSudahDipakai.add(idx);
+  });
+  return pilihan;
+}
+
+/* ==== RENDER TEORI ==== */
 function gotoTeori(reset=false){
   $("#tabTeori").classList.add("active");
   $("#tabPraktek").classList.remove("active");
   $("#content").innerHTML = "";
   if(reset){
-    paketSoal = shuffle([...bankSoal]).slice(0, Math.min(JUMLAH_SOAL, bankSoal.length));
-    jawabanUser = {};
-    skor = 0;
+    paketSoal = pilihSoalBaru();
+    jawabanUser={}; skor=0;
   }
   renderTeori();
 }
@@ -238,141 +198,99 @@ function gotoTeori(reset=false){
 function renderTeori(){
   const root = $("#content");
   const scoreBox = document.createElement("div");
-  scoreBox.className = "scorebox";
-  scoreBox.id = "scoreBox";
-  scoreBox.textContent = `Skor: ${skor} / ${paketSoal.length}`;
+  scoreBox.className="scorebox"; scoreBox.id="scoreBox";
+  scoreBox.textContent=`Skor: ${skor} / ${paketSoal.length}`;
   root.appendChild(scoreBox);
 
-  paketSoal.forEach((q, idx)=>{
-    const card = document.createElement("div");
-    card.className = "question";
+  paketSoal.forEach((q,idx)=>{
+    const card=document.createElement("div");
+    card.className="question";
+    card.innerHTML=`<h3 class="q-title">${idx+1}. ${q.soal}</h3>`;
+    if(q.gambar) card.innerHTML+=`<img class="q-media" src="${q.gambar}" alt="gambar soal">`;
 
-    const title = document.createElement("h3");
-    title.className = "q-title";
-    title.innerHTML = `${idx+1}. ${q.soal}`;
-    card.appendChild(title);
-
-    if(q.gambar){
-      const img = document.createElement("img");
-      img.className = "q-media";
-      img.alt = "Gambar soal";
-      img.src = q.gambar;
-      img.referrerPolicy = "no-referrer";
-      img.onerror = ()=>{ img.style.display="none"; };
-      card.appendChild(img);
-    }
-
-    const opts = document.createElement("div");
-    opts.className = "options";
-
-    q.opsi.forEach((teksOpt, j)=>{
-      const btn = document.createElement("button");
-      const huruf = String.fromCharCode(65 + j);
-      btn.className = "opt";
-      btn.type = "button";
-      btn.textContent = `${huruf}. ${teksOpt}`;
-      btn.addEventListener("click", ()=>{
+    const opts=document.createElement("div");
+    opts.className="options";
+    q.opsi.forEach((opt,j)=>{
+      const huruf=String.fromCharCode(65+j);
+      const btn=document.createElement("button");
+      btn.className="opt"; btn.type="button";
+      btn.textContent=`${huruf}. ${opt}`;
+      btn.onclick=()=>{
         if(jawabanUser[idx]) return;
-
-        jawabanUser[idx] = huruf;
-        // kunci
-        const benarIndex = q.kunciIndex;
-        if(j === benarIndex){
-          btn.classList.add("correct");
-          skor++;
-        } else {
+        jawabanUser[idx]=huruf;
+        const benar=q.kunciIndex;
+        if(j===benar){
+          btn.classList.add("correct"); skor++;
+        }else{
           btn.classList.add("wrong");
-          // tandai yang benar
-          const selector = `.opt:nth-child(${benarIndex+1})`;
-          const btnBenar = opts.querySelector(selector);
-          if(btnBenar) btnBenar.classList.add("correct");
-
-          // teks pembahasan ringkas
-          const explain = document.createElement("div");
-          explain.className = "explain";
-          const kunciText = q.opsi[benarIndex];
-          explain.textContent = `Jawaban benar: ${String.fromCharCode(65+benarIndex)}. ${kunciText}`;
-          card.appendChild(explain);
+          opts.children[benar].classList.add("correct");
+          const exp=document.createElement("div");
+          exp.className="explain";
+          exp.textContent=`Jawaban benar: ${String.fromCharCode(65+benar)}. ${q.opsi[benar]}`;
+          card.appendChild(exp);
         }
-        // kunci opsi di soal ini
-        [...opts.children].forEach(b => b.disabled = true);
-        // update skor live
-        $("#scoreBox").textContent = `Skor: ${skor} / ${paketSoal.length}`;
-      });
+        [...opts.children].forEach(b=>b.disabled=true);
+        $("#scoreBox").textContent=`Skor: ${skor} / ${paketSoal.length}`;
+      };
       opts.appendChild(btn);
     });
-
     card.appendChild(opts);
     root.appendChild(card);
   });
 
-  const actions = document.createElement("div");
-  actions.className = "footer-actions";
-  actions.innerHTML = `
-    <button class="btn" id="btnUlangi" type="button">Acak Ulang Soal</button>
-    <button class="btn primary" id="btnSelesai" type="button">Selesai & Lihat Rangkuman</button>
-  `;
+  const actions=document.createElement("div");
+  actions.className="footer-actions";
+  actions.innerHTML=`
+    <button class="btn" id="btnUlangi">Acak Ulang Soal</button>
+    <button class="btn primary" id="btnSelesai">Selesai & Rangkuman</button>`;
   root.appendChild(actions);
 
-  $("#btnUlangi").onclick = ()=> gotoTeori(true);
-  $("#btnSelesai").onclick = rangkuman;
+  $("#btnUlangi").onclick=()=>gotoTeori(true);
+  $("#btnSelesai").onclick=rangkuman;
 }
 
 function rangkuman(){
-  const root = $("#content");
-  const salah = [];
+  const salah=[];
   paketSoal.forEach((q,i)=>{
-    const hurufKunci = String.fromCharCode(65 + q.kunciIndex);
-    if(jawabanUser[i] !== hurufKunci){
-      salah.push({ no:i+1, benar: `${hurufKunci}. ${q.opsi[q.kunciIndex]}` });
+    const benar=String.fromCharCode(65+q.kunciIndex);
+    if(jawabanUser[i]!==benar){
+      salah.push({no:i+1,benar:`${benar}. ${q.opsi[q.kunciIndex]}`});
     }
   });
-
-  const box = document.createElement("div");
-  box.className = "card";
-  box.innerHTML = `<h3>Hasil Ujian</h3>
-    <p><strong>Skor:</strong> ${skor} / ${paketSoal.length}</p>
-    ${salah.length? `<p><strong>Soal yang salah:</strong></p>
-      <ul>${salah.map(s=>`<li>Nomor ${s.no} → ${s.benar}</li>`).join("")}</ul>` : `<p>🎉 Semua jawaban benar!</p>`}
-  `;
-  root.appendChild(box);
+  const box=document.createElement("div");
+  box.className="card";
+  box.innerHTML=`<h3>Hasil Ujian</h3>
+  <p><b>Skor:</b> ${skor} / ${paketSoal.length}</p>
+  ${salah.length?`<p><b>Soal yang salah:</b></p><ul>${salah.map(s=>`<li>No ${s.no} → ${s.benar}</li>`).join("")}</ul>`:"<p>🎉 Semua benar!</p>"}`;
+  $("#content").appendChild(box);
 }
 
+/* ==== PRAKTEK ==== */
 function gotoPraktek(){
   $("#tabTeori").classList.remove("active");
   $("#tabPraktek").classList.add("active");
-  const c = $("#content");
-  c.innerHTML = `
+  $("#content").innerHTML=`
     <div class="grid cols-2">
-      <div class="card">
-        <h3>Video Praktek sesi ke 1</h3>
-        <iframe src="https://www.youtube.com/embed/pTxyWrFCz6w" allowfullscreen referrerpolicy="no-referrer"></iframe>
-      </div>
-      <div class="card">
-        <h3>Video Praktek sesi ke 2</h3>
-        <iframe src="https://www.youtube.com/embed/CDz1AMt14Us" allowfullscreen referrerpolicy="no-referrer"></iframe>
-      </div>
-      <div class="card">
-        <h3>Video Praktek sesi ke 3</h3>
-        <iframe src="https://www.youtube.com/embed/PwxCufCy9Ss" allowfullscreen referrerpolicy="no-referrer"></iframe>
-      </div>
-      <div class="card">
-        <h3>Materi ujian praktek sesi ke 1 sampai ke 3</h3>
-        <a href="https://drive.google.com/file/d/1JQ4MXpNOZwBGqU0lR3hDYkS5b567iu2y/view?usp=drive_link" target="_blank" rel="noopener">📄 Buka Materi praktek sesi ke 1 sampai ke 3</a>
-      </div>
-    </div>
-  `;
+      <div class="card"><h3>Video Praktek Sesi ke 1</h3>
+        <iframe src="https://www.youtube.com/embed/pTxyWrFCz6w" allowfullscreen></iframe></div>
+      <div class="card"><h3>Video Praktek Sesi ke 2</h3>
+        <iframe src="https://www.youtube.com/embed/CDz1AMt14Us" allowfullscreen></iframe></div>
+      <div class="card"><h3>Video Praktek Sesi ke 3</h3>
+        <iframe src="https://www.youtube.com/embed/PwxCufCy9Ss" allowfullscreen></iframe></div>
+      <div class="card"><h3>Materi ujian praktek sesi ke 1 sampai ke 3</h3>
+        <a href="https://drive.google.com/file/d/1JQ4MXpNOZwBGqU0lR3hDYkS5b567iu2y/view?usp=drive_link" target="_blank">📄 Buka Materi</a></div>
+    </div>`;
 }
 
-/* ======= EVENT UI ======= */
-$("#toggleDark").addEventListener("click", () => {
+/* ==== EVENT ==== */
+$("#toggleDark").onclick=()=>{
   document.body.classList.toggle("dark");
-  $("#toggleDark").textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
-});
-$("#tabTeori").addEventListener("click", ()=> gotoTeori(false));
-$("#tabPraktek").addEventListener("click", gotoPraktek);
+  $("#toggleDark").textContent=document.body.classList.contains("dark")?"☀️":"🌙";
+};
+$("#tabTeori").onclick=()=>gotoTeori(false);
+$("#tabPraktek").onclick=gotoPraktek;
 
-/* Mulai */
+/* ==== START ==== */
 loadSoal();
 </script>
 </body>
