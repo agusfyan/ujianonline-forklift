@@ -6,50 +6,56 @@
 <title>Aplikasi Ujian Forklift (Teori & Praktek)</title>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <style>
-  :root{
-    --bg:#f6f7fb; --text:#111827; --card:#fff; --border:#e5e7eb; --muted:#6b7280;
-    --primary:#2563eb; --primary-contrast:#fff; --correct:#16a34a; --wrong:#dc2626;
-    --shadow:0 2px 10px rgba(0,0,0,.06);
-  }
-  body.dark{
-    --bg:#0b0f16; --text:#e5e7eb; --card:#111827; --border:#1f2937; --muted:#9ca3af;
-    --primary:#60a5fa; --primary-contrast:#0b0f16; --shadow:0 2px 14px rgba(0,0,0,.35);
-  }
-  *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    background:var(--bg);color:var(--text);transition:.25s;}
-  header{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--border);box-shadow:var(--shadow)}
-  .bar{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .brand{display:flex;align-items:center;gap:10px}
-  nav{display:flex;gap:8px;flex-wrap:wrap}
-  .tab{background:transparent;border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
-  .tab.active{background:var(--primary);color:var(--primary-contrast);border-color:transparent}
-  .icon-btn{background:transparent;border:1px solid var(--border);color:var(--text);
-    width:38px;height:38px;border-radius:999px;cursor:pointer;font-size:18px;display:grid;place-items:center}
-  .header-info{display:flex;gap:14px;align-items:center;font-weight:600}
-  main{max-width:1100px;margin:18px auto;padding:0 16px 24px}
-  .status{background:var(--card);border:1px solid var(--border);border-radius:10px;
-    padding:12px 14px;color:var(--muted);box-shadow:var(--shadow);margin-bottom:14px}
-  .question{background:var(--card);border:1px solid var(--border);border-radius:14px;
-    padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
-  .q-title{margin:0 0 10px;font-size:16px;line-height:1.35}
-  .q-media{max-width:100%;border-radius:10px;margin:10px 0;display:block}
-  .options{display:grid;gap:8px}
-  .opt{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);
-    background:var(--card);color:var(--text);text-align:left;cursor:pointer;transition:.2s}
-  .opt.correct{background:var(--correct);color:#fff;border-color:transparent}
-  .opt.wrong{background:var(--wrong);color:#fff;border-color:transparent}
-  .opt:disabled{opacity:.85;cursor:not-allowed}
-  .explain{margin-top:8px;color:var(--correct);font-style:italic;font-size:14px}
-  .footer-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
-  .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--border);
-    background:var(--card);color:var(--text);cursor:pointer;font-weight:600}
-  .btn.primary{background:var(--primary);color:var(--primary-contrast);border-color:transparent}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
-    padding:14px;box-shadow:var(--shadow);margin-top:16px}
-  .grid{display:grid;gap:14px}
-  @media(min-width:760px){.grid.cols-2{grid-template-columns:1fr 1fr}}
-  iframe{width:100%;height:260px;border:0;border-radius:10px}
+:root{
+  --bg:#f6f7fb; --text:#111827; --card:#fff; --border:#e5e7eb; --muted:#6b7280;
+  --primary:#2563eb; --primary-contrast:#fff; --correct:#16a34a; --wrong:#dc2626;
+  --shadow:0 2px 10px rgba(0,0,0,.06);
+}
+body.dark{
+  --bg:#0b0f16; --text:#e5e7eb; --card:#111827; --border:#1f2937; --muted:#9ca3af;
+  --primary:#60a5fa; --primary-contrast:#0b0f16; --shadow:0 2px 14px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  background:var(--bg);color:var(--text);transition:.25s;}
+header{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--border);box-shadow:var(--shadow);}
+.bar{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.brand{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+nav{display:flex;gap:8px;flex-wrap:wrap;}
+.tab{background:transparent;border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;}
+.tab.active{background:var(--primary);color:var(--primary-contrast);border-color:transparent;}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--text);
+  width:38px;height:38px;border-radius:999px;cursor:pointer;font-size:18px;display:grid;place-items:center;}
+.header-info{display:flex;gap:8px;align-items:center;font-weight:600;flex-wrap:wrap;font-size:13px;}
+main{max-width:1100px;margin:18px auto;padding:0 16px 24px;}
+.status{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;color:var(--muted);box-shadow:var(--shadow);margin-bottom:14px;font-size:14px;}
+.question{background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:16px;margin-bottom:14px;box-shadow:var(--shadow);}
+.q-title{margin:0 0 10px;font-size:16px;line-height:1.35;}
+.q-media{max-width:100%;border-radius:10px;margin:10px 0;display:block;}
+.options{display:grid;gap:8px;}
+.opt{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);
+  background:var(--card);color:var(--text);text-align:left;cursor:pointer;transition:.2s;font-size:14px;}
+.opt.correct{background:var(--correct);color:#fff;border-color:transparent;}
+.opt.wrong{background:var(--wrong);color:#fff;border-color:transparent;}
+.opt:disabled{opacity:.85;cursor:not-allowed;}
+.explain{margin-top:8px;color:var(--correct);font-style:italic;font-size:14px;}
+.q-meta{color:#4b5563; font-size:13px; margin-left:4px;}
+.footer-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;}
+.btn{padding:10px 14px;border-radius:10px;border:1px solid var(--border);
+  background:var(--card);color:var(--text);cursor:pointer;font-weight:600;font-size:14px;}
+.btn.primary{background:var(--primary);color:var(--primary-contrast);border-color:transparent;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:14px;box-shadow:var(--shadow);margin-top:16px;font-size:14px;}
+.grid{display:grid;gap:14px;}
+/* Responsif grid soal */
+.grid.cols-1{grid-template-columns:1fr;}
+@media(min-width:480px){.grid.cols-2{grid-template-columns:1fr 1fr;}}
+@media(min-width:900px){.grid.cols-3{grid-template-columns:1fr 1fr 1fr;}}
+iframe{width:100%;height:220px;border:0;border-radius:10px;}
+@media(min-width:480px){iframe{height:260px;}}
+@media(min-width:900px){iframe{height:280px;}}
 </style>
 </head>
 <body>
@@ -78,7 +84,6 @@
 </main>
 
 <script>
-/* ==== KONFIGURASI ==== */
 const SHEET_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9M0EUnafqpiKumZMNADPMVF_C6pCHsnBA6FW3UgCbxPIrkC_3elyBRmzR58k9xg/pub?output=csv&sheet=";
 const MATERI_SHEET = ["Materi 1","Materi 2","Materi 3","Materi 4","Materi 5","Materi 6"];
 const JUMLAH_SOAL = 80;
@@ -99,11 +104,10 @@ function normalizeRow(r){const soal=r["Soal"]||r["soal"]||"";const opsi=[r["A"],
   const gambar=r["Gambar"]?convertDriveLink(r["Gambar"]):"";const kunci=(r["Jawaban"]||"").trim().toUpperCase();const idx="ABCD".indexOf(kunci);
   if(!soal||opsi.length<2||idx<0) return null;return{soal,opsi,kunciIndex:idx,gambar};}
 
-/* ==== LOAD MULTI SHEET ==== */
 function loadSoal(){
   setStatus("Mengunduh soal dari semua materi…");
   let loaded=0;
-  MATERI_SHEET.forEach(sheetName=>{
+  MATERI_SHEET.forEach((sheetName, idx)=>{
     Papa.parse(SHEET_BASE+encodeURIComponent(sheetName),{
       download:true,header:true,skipEmptyLines:true,
       complete:res=>{
@@ -119,31 +123,27 @@ function loadSoal(){
   });
 }
 
-/* ==== PILIH 80 SOAL ==== */
 function pilihSoal(){
   let hasil=[];
-  MATERI_SHEET.forEach(m=>{
+  MATERI_SHEET.forEach((m, idx)=>{
     let arr=bankSoalPerMateri[m]||[];
     if(arr.length>0){
-      hasil.push(...shuffle([...arr]).slice(0,MIN_PER_MATERI));
+      let selected = shuffle([...arr]).slice(0,MIN_PER_MATERI);
+      selected.forEach((q,n)=>{ q.materi = idx+1; q.nomor = n+1; }); // set meta
+      hasil.push(...selected);
     }
   });
-
-  // tambahkan sisa dari gabungan
   let gabungan=[].concat(...Object.values(bankSoalPerMateri));
   gabungan=shuffle(gabungan);
   for(let i=0;i<gabungan.length && hasil.length<JUMLAH_SOAL;i++){
-    if(!hasil.includes(gabungan[i])) hasil.push(gabungan[i]);
+    if(!hasil.includes(gabungan[i])){
+      gabungan[i].materi=0; gabungan[i].nomor=0;
+      hasil.push(gabungan[i]);
+    }
   }
-
-  // 🔑 pastikan total fix 80
-  hasil = shuffle(hasil).slice(0, JUMLAH_SOAL);
-
-  return hasil;
+  return shuffle(hasil).slice(0, JUMLAH_SOAL);
 }
 
-
-/* ==== TIMER ==== */
 function startTimer(){if(timerInterval) return;startTime=Date.now();
   timerInterval=setInterval(()=>{const diff=Math.floor((Date.now()-startTime)/1000);
     $("#timer").textContent="Waktu: "+formatTime(diff);},1000);}
@@ -151,18 +151,19 @@ function updateHeader(){$("#answered").textContent="Dikerjakan: "+answered;
   $("#score").textContent="Score: "+skor;
   $("#nilai").textContent="Nilai: "+(skor*1.25).toFixed(2);}
 
-/* ==== RENDER TEORI ==== */
 function gotoTeori(reset=false){
   $("#tabTeori").classList.add("active");$("#tabPraktek").classList.remove("active");$("#content").innerHTML="";
   if(reset){paketSoal=pilihSoal();jawabanUser={};skor=0;answered=0;clearInterval(timerInterval);timerInterval=null;
     $("#timer").textContent="Waktu: 00:00";updateHeader();}
   renderTeori();
 }
+
 function renderTeori(){
   const root=$("#content");
   paketSoal.forEach((q,i)=>{
     const card=document.createElement("div");card.className="question";
-    card.innerHTML=`<h3 class="q-title">${i+1}. ${q.soal}</h3>`;
+    const metaText = `(Materi ${q.materi || '?'} - Soal ${q.nomor || (i+1)})`;
+    card.innerHTML=`<h3 class="q-title">${i+1}. ${q.soal} <span class="q-meta">${metaText}</span></h3>`;
     if(q.gambar) card.innerHTML+=`<img class="q-media" src="${q.gambar}">`;
     const opts=document.createElement("div");opts.className="options";
     q.opsi.forEach((opt,j)=>{
@@ -172,8 +173,12 @@ function renderTeori(){
         if(jawabanUser[i]) return;
         jawabanUser[i]=huruf;answered++;if(answered===1) startTimer();
         const benar=q.kunciIndex;
-        if(j===benar){btn.classList.add("correct");skor++;}else{btn.classList.add("wrong");opts.children[benar].classList.add("correct");
-          const exp=document.createElement("div");exp.className="explain";exp.textContent=`Jawaban benar: ${String.fromCharCode(65+benar)}. ${q.opsi[benar]}`;card.appendChild(exp);}
+        if(j===benar){btn.classList.add("correct");skor++;}else{
+          btn.classList.add("wrong");opts.children[benar].classList.add("correct");
+          const exp=document.createElement("div");exp.className="explain";
+          exp.textContent=`Jawaban benar: ${String.fromCharCode(65+benar)}. ${q.opsi[benar]}`;
+          card.appendChild(exp);
+        }
         [...opts.children].forEach(b=>b.disabled=true);updateHeader();
       };
       opts.appendChild(btn);
@@ -186,6 +191,7 @@ function renderTeori(){
   root.appendChild(actions);
   $("#btnUlangi").onclick=()=>gotoTeori(true);$("#btnSelesai").onclick=rangkuman;
 }
+
 function rangkuman(){
   const salah=[];paketSoal.forEach((q,i)=>{const benar=String.fromCharCode(65+q.kunciIndex);
     if(jawabanUser[i]!==benar){salah.push({no:i+1,benar:`${benar}. ${q.opsi[q.kunciIndex]}`});}});
@@ -197,7 +203,6 @@ function rangkuman(){
   $("#content").appendChild(box);
 }
 
-/* ==== PRAKTEK ==== */
 function gotoPraktek(){
   $("#tabTeori").classList.remove("active");$("#tabPraktek").classList.add("active");
   $("#content").innerHTML=`<div class="grid cols-2">
@@ -208,12 +213,10 @@ function gotoPraktek(){
   </div>`;
 }
 
-/* ==== EVENT ==== */
 $("#toggleDark").onclick=()=>{document.body.classList.toggle("dark");
   $("#toggleDark").textContent=document.body.classList.contains("dark")?"☀️":"🌙";}
 $("#tabTeori").onclick=()=>gotoTeori(false);$("#tabPraktek").onclick=gotoPraktek;
 
-/* ==== START ==== */
 loadSoal();
 </script>
 </body>
