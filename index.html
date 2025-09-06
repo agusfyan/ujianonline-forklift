@@ -49,7 +49,6 @@ main{max-width:1100px;margin:18px auto;padding:0 16px 24px;}
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
   padding:14px;box-shadow:var(--shadow);margin-top:16px;font-size:14px;}
 .grid{display:grid;gap:14px;}
-/* Responsif grid soal */
 .grid.cols-1{grid-template-columns:1fr;}
 @media(min-width:480px){.grid.cols-2{grid-template-columns:1fr 1fr;}}
 @media(min-width:900px){.grid.cols-3{grid-template-columns:1fr 1fr 1fr;}}
@@ -84,139 +83,232 @@ iframe{width:100%;height:220px;border:0;border-radius:10px;}
 </main>
 
 <script>
-const SHEET_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9M0EUnafqpiKumZMNADPMVF_C6pCHsnBA6FW3UgCbxPIrkC_3elyBRmzR58k9xg/pub?output=csv&sheet=";
-const MATERI_SHEET = ["Materi 1","Materi 2","Materi 3","Materi 4","Materi 5","Materi 6"];
-const JUMLAH_SOAL = 80;
-const MIN_PER_MATERI = 15;
+// ===== Helper =====
+const $ = (sel) => document.querySelector(sel);
 
+function convertDriveLink(url){
+  if(!url) return "";
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if(m) return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+  return url;
+}
+
+function shuffle(array){
+  for(let i=array.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [array[i],array[j]] = [array[j],array[i]];
+  }
+  return array;
+}
+
+function formatTime(seconds){
+  const m = String(Math.floor(seconds/60)).padStart(2,'0');
+  const s = String(seconds%60).padStart(2,'0');
+  return `${m}:${s}`;
+}
+
+// ===== Variabel global =====
 let bankSoalPerMateri = {};
 let paketSoal = [];
 let jawabanUser = {};
-let skor=0, answered=0;
-let timerInterval, startTime;
+let skor = 0;
+let answered = 0;
+let timerInterval = null;
+let startTime = null;
 
-const $=sel=>document.querySelector(sel);
-function setStatus(m){const el=$("#status");if(!m){el.style.display="none"}else{el.style.display="block";el.textContent=m}}
-function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function formatTime(sec){const m=String(Math.floor(sec/60)).padStart(2,"0");const s=String(sec%60).padStart(2,"0");return `${m}:${s}`}
-function convertDriveLink(u){if(!u) return"";const id=(u.match(/[-\w]{25,}/)||[])[0];return id?`https://drive.google.com/uc?export=view&id=${id}`:u}
-function normalizeRow(r){const soal=r["Soal"]||r["soal"]||"";const opsi=[r["A"],r["B"],r["C"],r["D"]].filter(Boolean);
-  const gambar=r["Gambar"]?convertDriveLink(r["Gambar"]):"";const kunci=(r["Jawaban"]||"").trim().toUpperCase();const idx="ABCD".indexOf(kunci);
-  if(!soal||opsi.length<2||idx<0) return null;return{soal,opsi,kunciIndex:idx,gambar};}
+const MIN_PER_MATERI = 13; // jumlah soal minimal per materi
+const JUMLAH_SOAL = 80;   // total soal per paket
+
+// ===== Link CSV Google Sheet (Publik) =====
+const SHEET_URLS = {
+  "Materi 1": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9M0EUnafqpiKumZMNADPMVF_C6pCHsnBA6FW3UgCbxPIrkC_3elyBRmzR58k9xg/pub?gid=1474425519&single=true&output=csv",
+  "Materi 2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vS57tCXmhF0jTGIMFaEG0He34m8cht6MEVhVEnnRzCvaUKPmmmLdwrxlLHNT23cOGQZbqXSN5K9m_J2/pub?gid=0&single=true&output=csv", // kosong contoh
+  "Materi 3": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTJwU-2UAEtPEQ6WHzKAP8xxfUyVk5UIm2U9ezt8x16EK6RyXeE3w8ueRXM5Gw88OLj_t0Sm6sPq6UK/pub?gid=0&single=true&output=csv", 
+  "Materi 4": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ8inB0ricy7-j0JGfYg8He8OXVYBd2HoxHjPbwYcRYrOGEyOg5YtdNJjDQFZD52jwpFP8yvZnqZUuZ/pub?gid=0&single=true&output=csv"
+};
+
+// ===== Fungsi normalisasi soal =====
+function normalizeRow(r, materi){
+  const soal = r["Soal"] || "";
+  const gambar = r["Gambar"] ? convertDriveLink(r["Gambar"]) : "";
+  const kunci = (r["Jawaban"] || "").trim().toUpperCase();
+  const idx = "ABCD".indexOf(kunci);
+  const noSoal = r["No"] || r["Nomor"] || "";
+
+  if(!soal || idx<0) return null;
+
+  const opsi = ["A","B","C","D"].map(h=>{
+    let val = r[h]? r[h].trim() : "";
+    if(!val) return null;
+    if(val.match(/\.(jpg|jpeg|png|gif)$/i) || val.includes("drive.google.com")){
+      return {type:"img", value: convertDriveLink(val)};
+    } else {
+      return {type:"text", value: val};
+    }
+  }).filter(Boolean);
+
+  if(opsi.length<2) return null;
+  return {soal, opsi, kunciIndex: idx, gambar, materi, noSoal};
+}
+
+// ===== Load soal dari CSV =====
+function setStatus(text){ $("#status").textContent = text; }
 
 function loadSoal(){
   setStatus("Mengunduh soal dari semua materi…");
+  let entries = Object.entries(SHEET_URLS).filter(([_,url])=>url);
   let loaded=0;
-  MATERI_SHEET.forEach((sheetName, idx)=>{
-    Papa.parse(SHEET_BASE+encodeURIComponent(sheetName),{
-      download:true,header:true,skipEmptyLines:true,
-      complete:res=>{
-        bankSoalPerMateri[sheetName]=res.data.map(normalizeRow).filter(Boolean);
+
+  if(entries.length===0){ setStatus("Tidak ada link soal yang valid."); return; }
+
+  entries.forEach(([materiName,url])=>{
+    Papa.parse(url, {
+      download:true, header:true, skipEmptyLines:true,
+      complete: res=>{
+        bankSoalPerMateri[materiName] = res.data.map((row,i)=>{
+          let q = normalizeRow(row,materiName);
+          if(q) q.sheetNo=i+2;
+          return q;
+        }).filter(Boolean);
+        console.log(`✅ Berhasil load ${materiName}, total soal: ${bankSoalPerMateri[materiName].length}`);
         loaded++;
-        if(loaded===MATERI_SHEET.length){
+        if(loaded===entries.length){
           setStatus("");
           gotoTeori(true);
         }
       },
-      error:e=>setStatus("Gagal memuat: "+e.message)
+      error:e=>{
+        console.error(`❌ Gagal load ${materiName}:`, e);
+        loaded++;
+        if(loaded===entries.length){
+          setStatus("");
+          gotoTeori(true);
+        }
+      }
     });
   });
 }
 
+// ===== Pilih soal =====
 function pilihSoal(){
-  let hasil=[];
-  MATERI_SHEET.forEach((m, idx)=>{
-    let arr=bankSoalPerMateri[m]||[];
+  let hasil=[], used=new Set();
+  Object.keys(SHEET_URLS).forEach(materi=>{
+    let arr = bankSoalPerMateri[materi] || [];
     if(arr.length>0){
-      let selected = shuffle([...arr]).slice(0,MIN_PER_MATERI);
-      selected.forEach((q,n)=>{ q.materi = idx+1; q.nomor = n+1; }); // set meta
-      hasil.push(...selected);
+      let shuffled = shuffle([...arr]);
+      let count=0;
+      for(let q of shuffled){
+        let key = q.soal+"||"+JSON.stringify(q.opsi)+"||"+q.kunciIndex;
+        if(!used.has(key)){
+          hasil.push(q); used.add(key); count++;
+          if(count>=MIN_PER_MATERI) break;
+        }
+      }
     }
   });
-  let gabungan=[].concat(...Object.values(bankSoalPerMateri));
-  gabungan=shuffle(gabungan);
-  for(let i=0;i<gabungan.length && hasil.length<JUMLAH_SOAL;i++){
-    if(!hasil.includes(gabungan[i])){
-      gabungan[i].materi=0; gabungan[i].nomor=0;
-      hasil.push(gabungan[i]);
+  let gabungan = shuffle([].concat(...Object.values(bankSoalPerMateri)));
+  for(let q of gabungan){
+    if(hasil.length>=JUMLAH_SOAL) break;
+    let key = q.soal+"||"+JSON.stringify(q.opsi)+"||"+q.kunciIndex;
+    if(!used.has(key)){
+      hasil.push(q); used.add(key);
     }
   }
-  return shuffle(hasil).slice(0, JUMLAH_SOAL);
+  return shuffle(hasil).slice(0,JUMLAH_SOAL);
 }
 
-function startTimer(){if(timerInterval) return;startTime=Date.now();
-  timerInterval=setInterval(()=>{const diff=Math.floor((Date.now()-startTime)/1000);
-    $("#timer").textContent="Waktu: "+formatTime(diff);},1000);}
-function updateHeader(){$("#answered").textContent="Dikerjakan: "+answered;
-  $("#score").textContent="Score: "+skor;
-  $("#nilai").textContent="Nilai: "+(skor*1.25).toFixed(2);}
+// ===== Timer & Header =====
+function startTimer(){ if(timerInterval) return; startTime=Date.now();
+  timerInterval=setInterval(()=>{
+    const diff=Math.floor((Date.now()-startTime)/1000);
+    $("#timer").textContent="Waktu: "+formatTime(diff);
+  },1000);
+}
 
+function updateHeader(){
+  $("#answered").textContent="Dikerjakan: "+answered;
+  $("#score").textContent="Score: "+skor;
+  $("#nilai").textContent="Nilai: "+(skor*1.25).toFixed(2);
+}
+
+// ===== Render Teori =====
 function gotoTeori(reset=false){
-  $("#tabTeori").classList.add("active");$("#tabPraktek").classList.remove("active");$("#content").innerHTML="";
-  if(reset){paketSoal=pilihSoal();jawabanUser={};skor=0;answered=0;clearInterval(timerInterval);timerInterval=null;
-    $("#timer").textContent="Waktu: 00:00";updateHeader();}
+  $("#tabTeori").classList.add("active");
+  $("#tabPraktek").classList.remove("active");
+  $("#content").innerHTML="";
+  if(reset){
+    paketSoal=pilihSoal();
+    jawabanUser={}; skor=0; answered=0;
+    clearInterval(timerInterval); timerInterval=null;
+    $("#timer").textContent="Waktu: 00:00";
+    updateHeader();
+  }
   renderTeori();
 }
 
 function renderTeori(){
   const root=$("#content");
   paketSoal.forEach((q,i)=>{
-    const card=document.createElement("div");card.className="question";
-    const metaText = `(Materi ${q.materi || '?'} - Soal ${q.nomor || (i+1)})`;
+    const card=document.createElement("div"); card.className="question";
+    const metaText=`(${q.materi} - Soal ${q.noSoal})`;
     card.innerHTML=`<h3 class="q-title">${i+1}. ${q.soal} <span class="q-meta">${metaText}</span></h3>`;
     if(q.gambar) card.innerHTML+=`<img class="q-media" src="${q.gambar}">`;
-    const opts=document.createElement("div");opts.className="options";
+    const opts=document.createElement("div"); opts.className="options";
     q.opsi.forEach((opt,j)=>{
       const huruf=String.fromCharCode(65+j);
-      const btn=document.createElement("button");btn.className="opt";btn.type="button";btn.textContent=`${huruf}. ${opt}`;
+      const btn=document.createElement("button"); btn.className="opt"; btn.type="button";
+      btn.innerHTML=opt.type==="img"? `<strong>${huruf}.</strong><br><img src="${opt.value}" style="max-width:120px;max-height:120px;">`:`${huruf}. ${opt.value}`;
       btn.onclick=()=>{
         if(jawabanUser[i]) return;
-        jawabanUser[i]=huruf;answered++;if(answered===1) startTimer();
+        jawabanUser[i]=huruf; answered++; if(answered===1) startTimer();
         const benar=q.kunciIndex;
-        if(j===benar){btn.classList.add("correct");skor++;}else{
-          btn.classList.add("wrong");opts.children[benar].classList.add("correct");
-          const exp=document.createElement("div");exp.className="explain";
-          exp.textContent=`Jawaban benar: ${String.fromCharCode(65+benar)}. ${q.opsi[benar]}`;
-          card.appendChild(exp);
+        if(j===benar){btn.classList.add("correct"); skor++;}else{
+          btn.classList.add("wrong"); opts.children[benar].classList.add("correct");
         }
-        [...opts.children].forEach(b=>b.disabled=true);updateHeader();
+        [...opts.children].forEach(b=>b.disabled=true);
+        updateHeader();
       };
       opts.appendChild(btn);
     });
-    card.appendChild(opts);root.appendChild(card);
+    card.appendChild(opts); root.appendChild(card);
   });
-  const actions=document.createElement("div");actions.className="footer-actions";
+  const actions=document.createElement("div"); actions.className="footer-actions";
   actions.innerHTML=`<button class="btn" id="btnUlangi">Acak Ulang Soal</button>
     <button class="btn primary" id="btnSelesai">Selesai & Rangkuman</button>`;
   root.appendChild(actions);
-  $("#btnUlangi").onclick=()=>gotoTeori(true);$("#btnSelesai").onclick=rangkuman;
+  $("#btnUlangi").onclick=()=>gotoTeori(true);
+  $("#btnSelesai").onclick=rangkuman;
 }
 
+// ===== Rangkuman =====
 function rangkuman(){
-  const salah=[];paketSoal.forEach((q,i)=>{const benar=String.fromCharCode(65+q.kunciIndex);
-    if(jawabanUser[i]!==benar){salah.push({no:i+1,benar:`${benar}. ${q.opsi[q.kunciIndex]}`});}});
-  const box=document.createElement("div");box.className="card";
+  const box=document.createElement("div"); box.className="card";
   box.innerHTML=`<h3>Hasil Ujian</h3>
-    <p><b>Score:</b> ${skor}</p><p><b>Nilai:</b> ${(skor*1.25).toFixed(2)}</p>
-    <p><b>Waktu:</b> ${$("#timer").textContent.replace("Waktu: ","")}</p>
-    ${salah.length?`<p><b>Soal yang salah:</b></p><ul>${salah.map(s=>`<li>No ${s.no} → ${s.benar}</li>`).join("")}</ul>`:"<p>🎉 Semua benar!</p>"}`;
+    <p><b>Score:</b> ${skor}</p>
+    <p><b>Nilai:</b> ${(skor*1.25).toFixed(2)}</p>
+    <p><b>Waktu:</b> ${$("#timer").textContent.replace("Waktu: ","")}</p>`;
   $("#content").appendChild(box);
 }
 
+// ===== Praktek =====
 function gotoPraktek(){
-  $("#tabTeori").classList.remove("active");$("#tabPraktek").classList.add("active");
+  $("#tabTeori").classList.remove("active");
+  $("#tabPraktek").classList.add("active");
   $("#content").innerHTML=`<div class="grid cols-2">
-    <div class="card"><h3>Video Praktek Sesi 1</h3><iframe src="https://www.youtube.com/embed/pTxyWrFCz6w"></iframe></div>
-    <div class="card"><h3>Video Praktek Sesi 2</h3><iframe src="https://www.youtube.com/embed/CDz1AMt14Us"></iframe></div>
+    <div class="card"><h3>Video Praktek 1</h3><iframe src="https://www.youtube.com/embed/pTxyWrFCz6w"></iframe></div>
+    <div class="card"><h3>Video Praktek 2</h3><iframe src="https://www.youtube.com/embed/CDz1AMt14Us"></iframe></div>
     <div class="card"><h3>Video Praktek Sesi 3</h3><iframe src="https://www.youtube.com/embed/PwxCufCy9Ss"></iframe></div>
     <div class="card"><h3>Materi Ujian Praktek</h3><a href="https://drive.google.com/file/d/1JQ4MXpNOZwBGqU0lR3hDYkS5b567iu2y/view" target="_blank">📄 Buka Materi</a></div>
   </div>`;
 }
 
+// ===== Event =====
 $("#toggleDark").onclick=()=>{document.body.classList.toggle("dark");
   $("#toggleDark").textContent=document.body.classList.contains("dark")?"☀️":"🌙";}
-$("#tabTeori").onclick=()=>gotoTeori(false);$("#tabPraktek").onclick=gotoPraktek;
+$("#tabTeori").onclick=()=>gotoTeori(false);
+$("#tabPraktek").onclick=gotoPraktek;
 
+// ===== Load soal =====
 loadSoal();
 </script>
 </body>
