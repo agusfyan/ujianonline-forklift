@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Aplikasi Ujian Forklift (Teori & Praktek)</title>
+<link rel="icon" href="https://iili.io/KoCVI7j.png" type="image/png">
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <style>
 :root{
@@ -92,7 +93,6 @@ function convertDriveLink(url){
   if(m) return `https://drive.google.com/uc?export=view&id=${m[1]}`;
   return url;
 }
-
 function shuffle(array){
   for(let i=array.length-1;i>0;i--){
     const j = Math.floor(Math.random()*(i+1));
@@ -100,7 +100,6 @@ function shuffle(array){
   }
   return array;
 }
-
 function formatTime(seconds){
   const m = String(Math.floor(seconds/60)).padStart(2,'0');
   const s = String(seconds%60).padStart(2,'0');
@@ -115,26 +114,26 @@ let skor = 0;
 let answered = 0;
 let timerInterval = null;
 let startTime = null;
+const JUMLAH_SOAL = 80;
 
-const MIN_PER_MATERI = 13; // jumlah soal minimal per materi
-const JUMLAH_SOAL = 80;   // total soal per paket
-
-// ===== Link CSV Google Sheet (Publik) =====
+// ===== URL CSV Google Sheets =====
 const SHEET_URLS = {
-  "Materi 1": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9M0EUnafqpiKumZMNADPMVF_C6pCHsnBA6FW3UgCbxPIrkC_3elyBRmzR58k9xg/pub?gid=1474425519&single=true&output=csv",
-  "Materi 2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vS57tCXmhF0jTGIMFaEG0He34m8cht6MEVhVEnnRzCvaUKPmmmLdwrxlLHNT23cOGQZbqXSN5K9m_J2/pub?gid=0&single=true&output=csv", // kosong contoh
-  "Materi 3": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTJwU-2UAEtPEQ6WHzKAP8xxfUyVk5UIm2U9ezt8x16EK6RyXeE3w8ueRXM5Gw88OLj_t0Sm6sPq6UK/pub?gid=0&single=true&output=csv", 
-  "Materi 4": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ8inB0ricy7-j0JGfYg8He8OXVYBd2HoxHjPbwYcRYrOGEyOg5YtdNJjDQFZD52jwpFP8yvZnqZUuZ/pub?gid=0&single=true&output=csv"
+  "Materi 15100-01": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9M0EUnafqpiKumZMNADPMVF_C6pCHsnBA6FW3UgCbxPIrkC_3elyBRmzR58k9xg/pub?gid=1474425519&single=true&output=csv",
+  "Materi 15100-02": "https://docs.google.com/spreadsheets/d/e/2PACX-1vS57tCXmhF0jTGIMFaEG0He34m8cht6MEVhVEnnRzCvaUKPmmmLdwrxlLHNT23cOGQZbqXSN5K9m_J2/pub?gid=0&single=true&output=csv",
+  "Materi 15100-03": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTJwU-2UAEtPEQ6WHzKAP8xxfUyVk5UIm2U9ezt8x16EK6RyXeE3w8ueRXM5Gw88OLj_t0Sm6sPq6UK/pub?gid=0&single=true&output=csv",
+  "Materi 90006-01": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ8inB0ricy7-j0JGfYg8He8OXVYBd2HoxHjPbwYcRYrOGEyOg5YtdNJjDQFZD52jwpFP8yvZnqZUuZ/pub?gid=0&single=true&output=csv",
+  "Materi 90007-01": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ5EbPvY2KjT_BhThOu6cBX7lb34nGI9YWJV-Vnm7I048vWrRhJekvvPTeDQXBPT3jLFjHXYRRiLlHr/pub?gid=0&single=true&output=csv",
+  "Materi 90008-03": "https://docs.google.com/spreadsheets/d/e/2PACX-1vSKtRiS6FWwAnquLFXSOqTlazfN0fr-mS-F884PZHBauZDk2rcGl8J40Ix7f69TTAxUURen6I0wJgSQ/pub?gid=0&single=true&output=csv",
+  "Materi 90009-04": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQcnFzhmKlcwbQB0Lyznkf4gaCwbSMH5X8O5TIKtwlf1OFgoG3iLRsuGZvTefqLESWJF5A9Y6qOhEoe/pub?gid=0&single=true&output=csv"
 };
 
-// ===== Fungsi normalisasi soal =====
+// ===== Normalisasi soal =====
 function normalizeRow(r, materi){
   const soal = r["Soal"] || "";
   const gambar = r["Gambar"] ? convertDriveLink(r["Gambar"]) : "";
   const kunci = (r["Jawaban"] || "").trim().toUpperCase();
   const idx = "ABCD".indexOf(kunci);
   const noSoal = r["No"] || r["Nomor"] || "";
-
   if(!soal || idx<0) return null;
 
   const opsi = ["A","B","C","D"].map(h=>{
@@ -151,80 +150,80 @@ function normalizeRow(r, materi){
   return {soal, opsi, kunciIndex: idx, gambar, materi, noSoal};
 }
 
-// ===== Load soal dari CSV =====
-function setStatus(text){ $("#status").textContent = text; }
+// ===== Load soal (Promise.all) =====
+function setStatus(t){$("#status").textContent=t;}
 
-function loadSoal(){
-  setStatus("Mengunduh soal dari semua materi…");
-  let entries = Object.entries(SHEET_URLS).filter(([_,url])=>url);
-  let loaded=0;
-
-  if(entries.length===0){ setStatus("Tidak ada link soal yang valid."); return; }
-
-  entries.forEach(([materiName,url])=>{
-    Papa.parse(url, {
-      download:true, header:true, skipEmptyLines:true,
-      complete: res=>{
-        bankSoalPerMateri[materiName] = res.data.map((row,i)=>{
-          let q = normalizeRow(row,materiName);
+function loadCSV(url, materi){
+  return new Promise((resolve,reject)=>{
+    Papa.parse(url,{download:true,header:true,skipEmptyLines:true,
+      complete:res=>{
+        const soalValid=res.data.map((row,i)=>{
+          const q=normalizeRow(row,materi);
           if(q) q.sheetNo=i+2;
           return q;
         }).filter(Boolean);
-        console.log(`✅ Berhasil load ${materiName}, total soal: ${bankSoalPerMateri[materiName].length}`);
-        loaded++;
-        if(loaded===entries.length){
-          setStatus("");
-          gotoTeori(true);
-        }
+        resolve({materi,soal:soalValid});
       },
-      error:e=>{
-        console.error(`❌ Gagal load ${materiName}:`, e);
-        loaded++;
-        if(loaded===entries.length){
-          setStatus("");
-          gotoTeori(true);
-        }
-      }
+      error:e=>reject(e)
     });
   });
 }
+async function loadSoal(){
+  try{
+    setStatus("Mengunduh semua soal…");
+    const entries=Object.entries(SHEET_URLS).filter(([_,url])=>url);
+    const hasil=await Promise.all(entries.map(([materi,url])=>loadCSV(url,materi)));
+    hasil.forEach(({materi,soal})=>{bankSoalPerMateri[materi]=soal;});
+    setStatus(""); gotoTeori(true);
+  }catch(e){console.error(e); setStatus("Gagal memuat soal.");}
+}
 
 // ===== Pilih soal =====
+const JUMLAH_PER_MATERI = { // jumlah soal per materi, bisa diubah sesuai kebutuhan
+  "Materi 15100-01": 18,
+  "Materi 15100-02": 17,
+  "Materi 15100-03": 17,
+  "Materi 90006-01": 7,
+  "Materi 90007-01": 7,
+  "Materi 90008-03": 7,
+  "Materi 90009-04": 7
+};
+
 function pilihSoal(){
-  let hasil=[], used=new Set();
-  Object.keys(SHEET_URLS).forEach(materi=>{
+  let hasil = [];
+  const usedPerMateri = {};
+
+  Object.keys(JUMLAH_PER_MATERI).forEach(materi=>{
     let arr = bankSoalPerMateri[materi] || [];
-    if(arr.length>0){
-      let shuffled = shuffle([...arr]);
-      let count=0;
+    if(arr.length===0) return;
+    let needed = JUMLAH_PER_MATERI[materi];
+    usedPerMateri[materi] = new Set();
+
+    let shuffled = shuffle([...arr]);
+    let count = 0;
+
+    while(count < needed){
       for(let q of shuffled){
-        let key = q.soal+"||"+JSON.stringify(q.opsi)+"||"+q.kunciIndex;
-        if(!used.has(key)){
-          hasil.push(q); used.add(key); count++;
-          if(count>=MIN_PER_MATERI) break;
+        let key = q.soal + "||" + JSON.stringify(q.opsi) + "||" + q.kunciIndex;
+        if(!usedPerMateri[materi].has(key)){
+          hasil.push(q);
+          usedPerMateri[materi].add(key);
+          count++;
+          if(count >= needed) break;
         }
       }
+      // jika masih kurang, reshuffle untuk ambil random tambahan dari materi yang sama
+      if(count < needed) shuffled = shuffle([...arr]);
     }
   });
-  let gabungan = shuffle([].concat(...Object.values(bankSoalPerMateri)));
-  for(let q of gabungan){
-    if(hasil.length>=JUMLAH_SOAL) break;
-    let key = q.soal+"||"+JSON.stringify(q.opsi)+"||"+q.kunciIndex;
-    if(!used.has(key)){
-      hasil.push(q); used.add(key);
-    }
-  }
-  return shuffle(hasil).slice(0,JUMLAH_SOAL);
+
+  // pastikan total soal tidak melebihi JUMLAH_SOAL
+  return shuffle(hasil).slice(0, JUMLAH_SOAL);
 }
 
 // ===== Timer & Header =====
-function startTimer(){ if(timerInterval) return; startTime=Date.now();
-  timerInterval=setInterval(()=>{
-    const diff=Math.floor((Date.now()-startTime)/1000);
-    $("#timer").textContent="Waktu: "+formatTime(diff);
-  },1000);
-}
-
+function startTimer(){if(timerInterval) return; startTime=Date.now();
+  timerInterval=setInterval(()=>{$("#timer").textContent="Waktu: "+formatTime(Math.floor((Date.now()-startTime)/1000));},1000);}
 function updateHeader(){
   $("#answered").textContent="Dikerjakan: "+answered;
   $("#score").textContent="Score: "+skor;
@@ -233,19 +232,11 @@ function updateHeader(){
 
 // ===== Render Teori =====
 function gotoTeori(reset=false){
-  $("#tabTeori").classList.add("active");
-  $("#tabPraktek").classList.remove("active");
+  $("#tabTeori").classList.add("active"); $("#tabPraktek").classList.remove("active");
   $("#content").innerHTML="";
-  if(reset){
-    paketSoal=pilihSoal();
-    jawabanUser={}; skor=0; answered=0;
-    clearInterval(timerInterval); timerInterval=null;
-    $("#timer").textContent="Waktu: 00:00";
-    updateHeader();
-  }
+  if(reset){paketSoal=pilihSoal(); jawabanUser={}; skor=0; answered=0; clearInterval(timerInterval); timerInterval=null; $("#timer").textContent="Waktu: 00:00"; updateHeader();}
   renderTeori();
 }
-
 function renderTeori(){
   const root=$("#content");
   paketSoal.forEach((q,i)=>{
@@ -258,42 +249,49 @@ function renderTeori(){
       const huruf=String.fromCharCode(65+j);
       const btn=document.createElement("button"); btn.className="opt"; btn.type="button";
       btn.innerHTML=opt.type==="img"? `<strong>${huruf}.</strong><br><img src="${opt.value}" style="max-width:120px;max-height:120px;">`:`${huruf}. ${opt.value}`;
-      btn.onclick=()=>{
-        if(jawabanUser[i]) return;
-        jawabanUser[i]=huruf; answered++; if(answered===1) startTimer();
-        const benar=q.kunciIndex;
-        if(j===benar){btn.classList.add("correct"); skor++;}else{
-          btn.classList.add("wrong"); opts.children[benar].classList.add("correct");
-        }
-        [...opts.children].forEach(b=>b.disabled=true);
-        updateHeader();
-      };
+      btn.onclick=()=>{if(jawabanUser[i]) return; jawabanUser[i]=huruf; answered++; if(answered===1) startTimer();
+        const benar=q.kunciIndex; if(j===benar){btn.classList.add("correct"); skor++;}else{btn.classList.add("wrong"); opts.children[benar].classList.add("correct");}
+        [...opts.children].forEach(b=>b.disabled=true); updateHeader();};
       opts.appendChild(btn);
     });
     card.appendChild(opts); root.appendChild(card);
   });
   const actions=document.createElement("div"); actions.className="footer-actions";
-  actions.innerHTML=`<button class="btn" id="btnUlangi">Acak Ulang Soal</button>
-    <button class="btn primary" id="btnSelesai">Selesai & Rangkuman</button>`;
+  actions.innerHTML=`<button class="btn" id="btnUlangi">Acak Ulang Soal</button><button class="btn primary" id="btnSelesai">Selesai & Rangkuman</button>`;
   root.appendChild(actions);
-  $("#btnUlangi").onclick=()=>gotoTeori(true);
-  $("#btnSelesai").onclick=rangkuman;
+  $("#btnUlangi").onclick=()=>gotoTeori(true); $("#btnSelesai").onclick=rangkuman;
 }
 
 // ===== Rangkuman =====
 function rangkuman(){
-  const box=document.createElement("div"); box.className="card";
-  box.innerHTML=`<h3>Hasil Ujian</h3>
+  // hentikan timer
+  if(timerInterval) clearInterval(timerInterval);
+
+  // cari soal yang salah
+  let salah = [];
+  paketSoal.forEach((q,i)=>{
+    const jawaban = jawabanUser[i];
+    if(!jawaban || "ABCD"[q.kunciIndex] !== jawaban){
+      salah.push(i+1); // nomor soal 1-based
+    }
+  });
+
+  // tampilkan rangkuman
+  const box = document.createElement("div");
+  box.className = "card";
+  box.innerHTML = `
+    <h3>Hasil Ujian</h3>
     <p><b>Score:</b> ${skor}</p>
     <p><b>Nilai:</b> ${(skor*1.25).toFixed(2)}</p>
-    <p><b>Waktu:</b> ${$("#timer").textContent.replace("Waktu: ","")}</p>`;
+    <p><b>Waktu:</b> ${$("#timer").textContent.replace("Waktu: ","")}</p>
+    <p><b>Soal Salah:</b> ${salah.length ? salah.join(", ") : "Tidak ada"}</p>
+  `;
   $("#content").appendChild(box);
 }
 
 // ===== Praktek =====
 function gotoPraktek(){
-  $("#tabTeori").classList.remove("active");
-  $("#tabPraktek").classList.add("active");
+  $("#tabTeori").classList.remove("active"); $("#tabPraktek").classList.add("active");
   $("#content").innerHTML=`<div class="grid cols-2">
     <div class="card"><h3>Video Praktek 1</h3><iframe src="https://www.youtube.com/embed/pTxyWrFCz6w"></iframe></div>
     <div class="card"><h3>Video Praktek 2</h3><iframe src="https://www.youtube.com/embed/CDz1AMt14Us"></iframe></div>
@@ -303,8 +301,7 @@ function gotoPraktek(){
 }
 
 // ===== Event =====
-$("#toggleDark").onclick=()=>{document.body.classList.toggle("dark");
-  $("#toggleDark").textContent=document.body.classList.contains("dark")?"☀️":"🌙";}
+$("#toggleDark").onclick=()=>{document.body.classList.toggle("dark"); $("#toggleDark").textContent=document.body.classList.contains("dark")?"☀️":"🌙";};
 $("#tabTeori").onclick=()=>gotoTeori(false);
 $("#tabPraktek").onclick=gotoPraktek;
 
