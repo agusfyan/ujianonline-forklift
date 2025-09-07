@@ -116,6 +116,9 @@ let timerInterval = null;
 let startTime = null;
 const JUMLAH_SOAL = 80;
 
+// ===== Track soal keluar per materi antar sesi =====
+const keluarPerMateri = {};
+
 // ===== URL CSV Google Sheets =====
 const SHEET_URLS = {
   "Materi 15100-01": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9M0EUnafqpiKumZMNADPMVF_C6pCHsnBA6FW3UgCbxPIrkC_3elyBRmzR58k9xg/pub?gid=1474425519&single=true&output=csv",
@@ -168,6 +171,7 @@ function loadCSV(url, materi){
     });
   });
 }
+
 async function loadSoal(){
   try{
     setStatus("Mengunduh semua soal…");
@@ -178,8 +182,8 @@ async function loadSoal(){
   }catch(e){console.error(e); setStatus("Gagal memuat soal.");}
 }
 
-// ===== Pilih soal =====
-const JUMLAH_PER_MATERI = { // jumlah soal per materi, bisa diubah sesuai kebutuhan
+// ===== Jumlah soal per materi =====
+const JUMLAH_PER_MATERI = {
   "Materi 15100-01": 18,
   "Materi 15100-02": 17,
   "Materi 15100-03": 17,
@@ -189,41 +193,54 @@ const JUMLAH_PER_MATERI = { // jumlah soal per materi, bisa diubah sesuai kebutu
   "Materi 90009-04": 7
 };
 
+// ===== Pilih soal tanpa mengulang antar sesi =====
 function pilihSoal(){
   let hasil = [];
-  const usedPerMateri = {};
 
   Object.keys(JUMLAH_PER_MATERI).forEach(materi=>{
     let arr = bankSoalPerMateri[materi] || [];
     if(arr.length===0) return;
+
+    if(!keluarPerMateri[materi]) keluarPerMateri[materi] = new Set();
     let needed = JUMLAH_PER_MATERI[materi];
-    usedPerMateri[materi] = new Set();
 
-    let shuffled = shuffle([...arr]);
-    let count = 0;
+    // soal yang belum keluar
+    let remaining = arr.filter(q=>{
+      let key = q.soal + "||" + JSON.stringify(q.opsi) + "||" + q.kunciIndex;
+      return !keluarPerMateri[materi].has(key);
+    });
 
-    while(count < needed){
+    let takeNow = Math.min(needed, remaining.length);
+    let selected = shuffle([...remaining]).slice(0, takeNow);
+
+    selected.forEach(q=>{
+      let key = q.soal + "||" + JSON.stringify(q.opsi) + "||" + q.kunciIndex;
+      hasil.push(q);
+      keluarPerMateri[materi].add(key);
+    });
+
+    // jika masih kurang, ambil dari materi yang sama (semua soal sudah keluar)
+    if(selected.length < needed){
+      let toPick = needed - selected.length;
+      let shuffled = shuffle([...arr]);
       for(let q of shuffled){
         let key = q.soal + "||" + JSON.stringify(q.opsi) + "||" + q.kunciIndex;
-        if(!usedPerMateri[materi].has(key)){
+        if(!hasil.includes(q)){ // pastikan tidak duplikat di sesi ini
           hasil.push(q);
-          usedPerMateri[materi].add(key);
-          count++;
-          if(count >= needed) break;
+          toPick--;
+          if(toPick <= 0) break;
         }
       }
-      // jika masih kurang, reshuffle untuk ambil random tambahan dari materi yang sama
-      if(count < needed) shuffled = shuffle([...arr]);
     }
   });
 
-  // pastikan total soal tidak melebihi JUMLAH_SOAL
   return shuffle(hasil).slice(0, JUMLAH_SOAL);
 }
 
 // ===== Timer & Header =====
 function startTimer(){if(timerInterval) return; startTime=Date.now();
   timerInterval=setInterval(()=>{$("#timer").textContent="Waktu: "+formatTime(Math.floor((Date.now()-startTime)/1000));},1000);}
+
 function updateHeader(){
   $("#answered").textContent="Dikerjakan: "+answered;
   $("#score").textContent="Score: "+skor;
@@ -234,9 +251,16 @@ function updateHeader(){
 function gotoTeori(reset=false){
   $("#tabTeori").classList.add("active"); $("#tabPraktek").classList.remove("active");
   $("#content").innerHTML="";
-  if(reset){paketSoal=pilihSoal(); jawabanUser={}; skor=0; answered=0; clearInterval(timerInterval); timerInterval=null; $("#timer").textContent="Waktu: 00:00"; updateHeader();}
+  if(reset){
+    paketSoal=pilihSoal(); 
+    jawabanUser={}; skor=0; answered=0; 
+    clearInterval(timerInterval); timerInterval=null; 
+    $("#timer").textContent="Waktu: 00:00"; 
+    updateHeader();
+  }
   renderTeori();
 }
+
 function renderTeori(){
   const root=$("#content");
   paketSoal.forEach((q,i)=>{
@@ -264,19 +288,14 @@ function renderTeori(){
 
 // ===== Rangkuman =====
 function rangkuman(){
-  // hentikan timer
   if(timerInterval) clearInterval(timerInterval);
-
-  // cari soal yang salah
   let salah = [];
   paketSoal.forEach((q,i)=>{
     const jawaban = jawabanUser[i];
     if(!jawaban || "ABCD"[q.kunciIndex] !== jawaban){
-      salah.push(i+1); // nomor soal 1-based
+      salah.push(i+1);
     }
   });
-
-  // tampilkan rangkuman
   const box = document.createElement("div");
   box.className = "card";
   box.innerHTML = `
